@@ -216,10 +216,13 @@ def main():
     # Only add quantization_config if it's not None
     if quantization_config is not None:
         model_kwargs["quantization_config"] = quantization_config
+    from training_options import native_training_kwargs
+    native_options = native_training_kwargs(train_request["model_path"], quantization_config)
+    model_kwargs.update(native_options)
 
     log_info(f"args finais: {training_args}")
 
-    if training_args.use_liger:
+    if training_args.use_liger and not native_options:
         from liger_kernel.transformers import AutoLigerKernelForCausalLM
 
         model_class = AutoLigerKernelForCausalLM

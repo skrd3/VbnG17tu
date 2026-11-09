@@ -328,6 +328,7 @@ def main():
     train_request = train_info["train_request"]
     from training_options import apply_request_limits
     apply_request_limits(training_args, train_request)
+    training_args.save_only_model = True
     task_id = train_request["task_id"]
     log_info(f"Começando tarefa={task_id}, modelo={train_request.get('model_name')}")
     
@@ -401,20 +402,21 @@ def main():
     if len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled():
         device_map = None
     
+    from training_options import grpo_attention_implementation, native_training_kwargs
     model_kwargs = dict(
         revision=model_args.model_revision,
-        attn_implementation=(
-            "flash_attention_2" if not training_args.disable_fa else "eager"
-        ),
+        attn_implementation=grpo_attention_implementation(train_request["model_path"], training_args.disable_fa),
         torch_dtype=torch.bfloat16,
         use_cache=False if training_args.gradient_checkpointing else True,
         device_map=device_map,
         quantization_config=quantization_config,
     )
+    native_options = native_training_kwargs(train_request["model_path"], quantization_config)
+    model_kwargs.update(native_options)
 
     log_info(f"args finais: {training_args}")
 
-    if training_args.use_liger:
+    if training_args.use_liger and not native_options:
         from liger_kernel.transformers import AutoLigerKernelForCausalLM
 
         model_class = AutoLigerKernelForCausalLM

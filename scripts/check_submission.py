@@ -22,7 +22,8 @@ def main():
             kwargs["device_map"] = "auto"
         if (Path(args.output) / "adapter_config.json").is_file():
             from peft import PeftModel
-            base = AutoModelForCausalLM.from_pretrained(args.base, **kwargs)
+            from training_options import native_training_kwargs
+            base = AutoModelForCausalLM.from_pretrained(args.base, **{**kwargs, **native_training_kwargs(args.base)})
             model = PeftModel.from_pretrained(base, args.output, local_files_only=True)
         else:
             model, loading = AutoModelForCausalLM.from_pretrained(args.output, output_loading_info=True, **kwargs)

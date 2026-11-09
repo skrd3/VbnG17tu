@@ -53,11 +53,10 @@ def load_base_model(
     (the training rank's device) so KL forwards stay on-GPU. Only used for the
     full fine-tune path; LoRA uses ``disable_adapter`` instead.
     """
-    base = transformers.AutoModelForCausalLM.from_pretrained(
-        model_path,
-        torch_dtype=dtype,
-        attn_implementation=attn_implementation,
-    )
+    from training_options import native_training_kwargs
+    kwargs = dict(torch_dtype=dtype, attn_implementation=attn_implementation)
+    kwargs.update(native_training_kwargs(model_path))
+    base = transformers.AutoModelForCausalLM.from_pretrained(model_path, **kwargs)
     base.to(device)
     base.eval()
     try:

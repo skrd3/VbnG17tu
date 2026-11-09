@@ -112,7 +112,7 @@ def load_lora_model(training_args: TrainingArguments, model_path: str, lora_args
         model_class = transformers.AutoModelForCausalLM
 
     from training_options import validate_lora_base
-    validate_lora_base(model_path)
+    native_options = validate_lora_base(model_path, q_lora=lora_args.q_lora)
     load_kwargs = dict(
         attn_implementation="flash_attention_2" if not training_args.disable_fa else "eager",
         torch_dtype=torch.bfloat16,
@@ -122,6 +122,9 @@ def load_lora_model(training_args: TrainingArguments, model_path: str, lora_args
             load_in_4bit=True, bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16,
         )
+    if native_options:
+        model_class = transformers.AutoModelForCausalLM
+        load_kwargs.update(native_options)
     model = model_class.from_pretrained(model_path, **load_kwargs)
     # do not resize tokem embeddings in LOra --> will encounter size mismatch error in evaluation 
     # model.resize_token_embeddings(token_nums)
@@ -176,12 +179,13 @@ def load_model(training_args: TrainingArguments, model_path: str, token_nums: in
         log_info(f"atenção via {attn_implementation}")
     log_info(f"atenção: {attn_implementation}")
     
-    model = model_class.from_pretrained(
-        model_path,
-        # trust_remote_code=True, remove this because we already filter the model architecture, it will not be used with liger-kernel 
-        torch_dtype=torch.bfloat16,
-        attn_implementation=attn_implementation,
-    )
+    from training_options import native_training_kwargs
+    kwargs = dict(torch_dtype=torch.bfloat16, attn_implementation=attn_implementation)
+    native_options = native_training_kwargs(model_path)
+    if native_options:
+        model_class = transformers.AutoModelForCausalLM
+        kwargs.update(native_options)
+    model = model_class.from_pretrained(model_path, **kwargs)
     # model.resize_token_embeddings(token_nums)
     return model
 
@@ -203,7 +207,7 @@ def main():
     apply_request_limits(training_args, train_request)
     if training_args.use_lora:
         from training_options import validate_lora_base
-        validate_lora_base(train_request["model_path"])
+        validate_lora_base(train_request["model_path"], q_lora=lora_args.q_lora)
     # log_info(f"Training request: {train_request}", "start")
     task_id = train_request["task_id"]
 

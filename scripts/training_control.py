@@ -73,7 +73,7 @@ class TrainingControlCallback(TrainerCallback):
         if counts is None:
             counts = torch.zeros(2, dtype=torch.int64, device=args.device)
         finite = getattr(self.trainer, "_last_finite_loss", None)
-        flag = finite.to(counts.device, dtype=torch.int64).reshape(1) if finite is not None else counts.new_ones(1)
+        flag = finite.to(counts.device).all().to(dtype=torch.int64).reshape(1) if finite is not None else counts.new_ones(1)
         payload = torch.cat((counts, flag))
         if torch.distributed.is_initialized():
             torch.distributed.all_reduce(payload)

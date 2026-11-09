@@ -24,7 +24,8 @@ from paired_selection import dataset_fingerprint
 @contextmanager
 def selection_randomness(trainer, seed):
     """Restore training RNG and seed colocated vLLM SamplingParams explicitly."""
-    devices = [trainer.accelerator.device.index] if trainer.accelerator.device.type == "cuda" else []
+    device = trainer.accelerator.device
+    devices = [device.index if device.index is not None else torch.cuda.current_device()] if device.type == "cuda" else []
     python_state, numpy_state = random.getstate(), np.random.get_state()
     llm = getattr(trainer, "llm", None)
     original_generate = getattr(llm, "generate", None)

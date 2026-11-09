@@ -1,5 +1,6 @@
 """Stdlib-only launcher: starts the budget before importing ML libraries."""
 import os
+import json
 from pathlib import Path
 import sys
 import time
@@ -15,9 +16,15 @@ def main():
     if hours is None:
         raise SystemExit("Missing --hours-to-complete")
     establish_deadline(hours)
+    for name in ("WANDB_DIR", "WANDB_CACHE_DIR", "WANDB_ARTIFACT_DIR", "WANDB_DATA_DIR", "WANDB_CONFIG_DIR"):
+        os.environ.setdefault(name, "/app/checkpoints/wandb_logs")
     model = extract_argument(sys.argv[1:], "model") or ""
     interpreter = sys.executable
-    if "gpt-oss" in model.lower():
+    config_path = Path("/cache/models") / model.replace("/", "--") / "config.json"
+    config = json.loads(config_path.read_text()) if config_path.is_file() else {}
+    quant = config.get("quantization_config") or {}
+    if (config.get("model_type") == "gpt_oss" or quant.get("quant_method") == "mxfp4"
+            or "gpt-oss" in model.lower()):
         interpreter = "/workspace/oss_py/bin/python"
         if not Path(interpreter).is_file():
             raise SystemExit("gpt-oss build environment missing; rebuild the provided Dockerfile")

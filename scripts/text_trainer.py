@@ -20,7 +20,7 @@ from datetime import datetime, timezone, timedelta
 import yaml
 from transformers import AutoTokenizer
 
-from state_manager import set_state
+from state_manager import get_state, set_state
 import numpy as np
 
 
@@ -95,7 +95,8 @@ def patch_submission_config(model_path: str, submission_dir: str):
 
 
 def is_openai_model(model_name: str) -> bool:
-    architecture = get_model_architecture(model_name)
+    local = train_paths.get_text_base_model_path(model_name)
+    architecture = get_model_architecture(local if os.path.isdir(local) else model_name)
     if architecture.lower() == "gptossforcausallm":
         return True
     return False
@@ -277,6 +278,7 @@ def main():
     parser = argparse.ArgumentParser(description="Text Model Training Script")
     parser.add_argument("--task-id", required=True, help="Task ID")
     parser.add_argument("--model", required=True, help="Model name or path")
+    parser.add_argument("--training-config", help="Optional JSON file/object of validated backend and training controls")
     parser.add_argument(
         "--dataset", required=True, help="Dataset path or HF dataset name"
     )
@@ -328,6 +330,9 @@ def main():
     )
 
     args = parser.parse_args()
+    from runtime_config import load_config, configure_environment
+    runtime_config = load_config(args.training_config)
+    configure_environment(runtime_config)
     for value in (args.task_id, args.expected_repo_name):
         if not re.fullmatch(r"[A-Za-z0-9_.-]+", value) or value in (".", ".."):
             raise ValueError("Unsafe task id/repository name")
@@ -386,6 +391,7 @@ def main():
             raise RuntimeError("gpt-oss requires the prebuilt oss environment; runtime pip installation is forbidden")
 
     train_info = {
+        "runtime_config": runtime_config,
         "model_name": original_model_name,
         "task_type": original_task_type,
         "model_path": model_path,
@@ -464,7 +470,9 @@ def main():
     cmd_lr = extract_value_from_cmd(train_cmd, "learning_rate")
     print(f"[sn56] Treino completo: lr={cmd_lr}", flush=True)
 
-    state = {}
+    previous_state = get_state()
+    state = {key: previous_state[key] for key in ("best_lr_found", "best_lr_plan_key", "best_lr_batch_size")
+             if key in previous_state}
     state["mode"] = "finish"
     state["train"] = {
         "train_cmd": train_cmd,

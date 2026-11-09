@@ -188,13 +188,10 @@ def get_run_cmd(config: dict, gpu_nums: int):
         if key not in config:
             raise ValueError(f"Required key {key} not found in config")
 
-    start_cmd = shlex.quote(sys.executable)
+    from process_runner import training_launcher
+    gpu_nums = max(1, get_gpu_count())
     run_type = config["distributed"]
-    # if gpu_nums > 1 and run_type == "ddp":
-    gpu_nums = get_gpu_count()
-    start_cmd = shlex.quote(sys.executable) + f" -m torch.distributed.run --nproc_per_node={gpu_nums}"
-    if run_type == "ds":
-        start_cmd = shlex.quote(sys.executable) + " -m deepspeed.launcher.runner"
+    start_cmd = training_launcher(run_type, gpu_nums, config.get("launcher", "auto"))
 
     template = (
         start_cmd
@@ -362,6 +359,8 @@ def get_training_json(train_info: dict) -> dict:
                 flush=True,
             )
 
+    from runtime_config import apply_plan
+    apply_plan(train_info, run_config)
     resolve_batch(run_config, max_accum=4, generations=run_config["num_generations"])
     run_config["eval_batch_size"] = 2
 
@@ -373,4 +372,5 @@ def get_training_json(train_info: dict) -> dict:
     run_config["max_steps"] = train_info.get("max_steps", -1)
     run_cmd = get_run_cmd(run_config, run_config["gpu_nums"])
 
-    return {"train_request": train_request, "run_cmd": run_cmd}
+    from runtime_config import finish
+    return finish(train_info, run_config, train_request, run_cmd, "grpo")

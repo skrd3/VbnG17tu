@@ -141,12 +141,10 @@ def get_run_cmd(config: dict, gpu_nums: int):
             raise ValueError(f"Required key {key} not found in config")
 
     gpu_nums = get_gpu_count()
-    start_cmd = shlex.quote(sys.executable)
+    from process_runner import training_launcher
+    gpu_nums = max(1, get_gpu_count())
     run_type = config["distributed"]
-    if gpu_nums > 1 and run_type == "ddp":
-        start_cmd = shlex.quote(sys.executable) + f" -m torch.distributed.run --nproc_per_node={gpu_nums}"
-    elif run_type == "ds":
-        start_cmd = shlex.quote(sys.executable) + " -m deepspeed.launcher.runner"
+    start_cmd = training_launcher(run_type, gpu_nums, config.get("launcher", "auto"))
 
     template = (
         start_cmd
@@ -306,9 +304,14 @@ def get_training_json(train_info: dict) -> dict:
         max_length = min(2048, model_max_pos) if isinstance(model_max_pos, int) and model_max_pos > 0 else 2048
 
     run_config["batch_size"] = max(1, run_config["batch_size"])
+    from runtime_config import apply_plan
+    max_length = apply_plan(train_info, run_config, max_length)
+    from training_options import cap_unfused_logits_batch
+    cap_unfused_logits_batch(run_config, model_path, max_length)
     resolve_batch(run_config)
     if model_architecture.strip().lower() in ["gptossforcausallm"]:
-        run_config["use_lora"] = False  # currently, gptoss does not support lora
+        if "use_lora" not in train_info.get("runtime_config", {}):
+            run_config["use_lora"] = False
 
     if train_info["find_lk_lr"]:
         effective_bs = run_config["batch_size"] * run_config["gradient_accumulation_steps"] * run_config["gpu_nums"]
@@ -344,4 +347,5 @@ def get_training_json(train_info: dict) -> dict:
             int(train_info["hours_to_complete"] * 70), train_request["min_steps"]
         )
 
-    return {"train_request": train_request, "run_cmd": run_cmd}
+    from runtime_config import finish
+    return finish(train_info, run_config, train_request, run_cmd, "instruct")

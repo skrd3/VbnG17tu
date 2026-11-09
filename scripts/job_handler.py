@@ -9,7 +9,7 @@ import pandas as pd
 import toml
 import yaml
 from docker.errors import DockerException
-from fiber.logging_utils import get_logger
+from logging import getLogger as get_logger
 from huggingface_hub import HfApi
 
 from core import constants as cst

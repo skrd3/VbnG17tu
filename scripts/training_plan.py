@@ -48,7 +48,11 @@ def search_plan_key(args, request):
                 "microbatch": args.per_device_train_batch_size, "world": args.world_size,
                 "accum": args.gradient_accumulation_steps, "optimizer": str(args.optim),
                 "use_kl": os.environ.get("USE_KL"), "kl_coef": os.environ.get("KL_COEF"),
-                "use_lora": getattr(args, "use_lora", getattr(args, "use_peft", False))}
+                "use_lora": getattr(args, "use_lora", getattr(args, "use_peft", False)),
+                "training_controls": request.get("runtime_config", {}),
+                "baseline_stats": request.get("baseline_stats"),
+                "objective": {name: getattr(args, name, None) for name in
+                              ("label_smoothing_factor", "beta", "loss_type", "rpo_alpha", "ld_alpha", "use_weighting")}}
     return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
 
 
@@ -63,6 +67,8 @@ def resolve_batch(config, target=64, max_accum=None, generations=None):
     accum = max(1, math.ceil(target / (micro * world)))
     if max_accum:
         accum = min(accum, max_accum)
+    if "requested_gradient_accumulation_steps" in config:
+        accum = int(config["requested_gradient_accumulation_steps"])
     config.update(batch_size=micro, gradient_accumulation_steps=accum)
     return micro * accum * world
 

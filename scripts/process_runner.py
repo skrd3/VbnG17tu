@@ -75,3 +75,12 @@ def run_command(command, log_path, env_vars=None):
         if process.poll() is None:
             kill_group()
             process.wait()
+
+
+def training_launcher(run_type, gpu_count, launcher="auto"):
+    """Use indexed CUDA devices and a loopback rendezvous, including one GPU."""
+    python = shlex.quote(sys.executable)
+    if launcher == "deepspeed" or (launcher == "auto" and run_type == "ds"):
+        return python + " -m deepspeed.launcher.runner --master_addr=127.0.0.1"
+    return (python + " -m torch.distributed.run --master_addr=127.0.0.1 "
+            f"--master_port=29500 --nproc_per_node={max(1, int(gpu_count))}")

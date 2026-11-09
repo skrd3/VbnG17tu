@@ -1,5 +1,28 @@
 # Text tournament trainer
 
+Run the official-entrypoint smoke matrix with `./test41.sh`. It builds
+`dockerfiles/standalone-text-trainer.dockerfile`, downloads the fixed public
+Qwen 0.5B revision, generates synthetic data/architecture fixtures outside the
+repository, and runs all 41 training jobs through the image's default entrypoint.
+It needs Docker/buildx, Python 3, NVIDIA Container Toolkit and two visible NVIDIA
+GPUs; its private RAM-backed build cache needs sufficient host RAM (80 GiB).
+No host Python packages, model paths, environment exports or running vLLM service
+need to be prepared. Results, logs and checkpoints default to `/root/out`, with
+the report at `/root/out/test41_rou1.MD`. Use `./test41.sh --resume` to keep
+completed cases, or `--only container_instruct,container_grpo` for a subset.
+Each fresh run preserves previous attempts. Build and failed-case logs are retained.
+
+The public entrypoint also accepts optional `--training-config FILE_OR_JSON`.
+Without it the validator's standard arguments use the production defaults.
+Controls are validated by `scripts/runtime_config.py`; they can select actual
+DDP/ZeRO/FSDP, LoRA/QLoRA, packing, attention and generation parameters, but cannot
+change the cache model, task identity, submission path or deadline. The test
+matrix passes its configuration through this same entrypoint, without mounting
+replacement production scripts. Auxiliary fixture creation and finite-loss reload
+checks are separate tool containers. Native MXFP4 is explicitly decoded with
+`Mxfp4Config(dequantize=True)` before training; relabelling it as NF4 is rejected.
+Micro GPT-OSS fixtures do not establish real 20B training or large-model quality.
+
 This repository keeps the official standalone text trainer contract:
 
 - Dockerfile: `dockerfiles/standalone-text-trainer.dockerfile`.
